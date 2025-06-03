@@ -18,5 +18,5 @@ variables:
   ado_service_connection_aml_ws: Azure-ARM-Prod
 
   # For pipeline reference
-  resource_group: gl-dec24-pro
-  aml_workspace: FitwellWorkspace
+  resource_group: default_resourse_group
+  aml_workspace: demo_workspace
