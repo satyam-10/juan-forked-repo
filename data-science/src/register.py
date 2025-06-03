@@ -9,13 +9,13 @@ from pathlib import Path
 import mlflow
 import os 
 import json
+import mlflow.sklearn
 
 def parse_args():
     '''Parse input arguments'''
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name', type=str, help='Name under which model will be registered')
-    parser.add_argument('--model_path', type=str, help='Model directory')
+    parser.add_argument('--model_path', type=str, help='Path to trained model')
     parser.add_argument("--model_info_output_path", type=str, help="Path to write model info JSON")
     args, _ = parser.parse_known_args()
     print(f'Arguments: {args}')
@@ -23,50 +23,43 @@ def parse_args():
     return args
 
 def main(args):
-    '''Loads the best-trained model from the sweep job and registers it'''
+    '''Loads the best-trained model and registers it to MLflow'''
 
-    print("Registering ", args.model_name)
-    
-    # Step 1: Load the model from the specified path
+    model_name = "used-cars-model"
+    print("Registering model:", model_name)
+
+    # Step 1: Load and log the model to MLflow
     model = mlflow.sklearn.load_model(args.model_path)
+    mlflow.sklearn.log_model(sk_model=model, artifact_path="model")
 
-    # Step 2: Log the model
-    artifact_path = "random_forest_price_regressor"
-    mlflow.sklearn.log_model(
-        sk_model=model,
-        artifact_path=artifact_path
-    )
+    # Step 2: Construct the URI to the logged model
+    model_uri = f"runs:/{mlflow.active_run().info.run_id}/model"
 
-    # Step 3: Register the model using its artifact URI
-    run_id = mlflow.active_run().info.run_id
-    model_uri = f"runs:/{run_id}/{artifact_path}"
-    mlflow_model = mlflow.register_model(model_uri=model_uri, name=args.model_name)
-    model_version = mlflow_model.version
+    # Step 3: Register the model under the specified name
+    registered_model = mlflow.register_model(model_uri=model_uri, name=model_name)
 
-    # Step 4: Save model registration details
-    print("Writing JSON")
-    model_info = {"id": f"{args.model_name}:{model_version}"}
-    output_path = os.path.join(args.model_info_output_path, "model_info.json")
-    with open(output_path, "w") as of:
-        json.dump(model_info, of)
+    print(f"✅ Registered model: {registered_model.name}, version: {registered_model.version}")
 
+    # Step 4: Save model info to output JSON
+    model_info = {
+        "model_name": registered_model.name,
+        "model_version": registered_model.version
+    }
+
+    output_dir = Path(args.model_info_output_path).parent
+    os.makedirs(output_dir, exist_ok=True)
+
+    with open(args.model_info_output_path, "w") as f:
+        json.dump(model_info, f)
+
+    print(f"📦 Model info saved to: {args.model_info_output_path}")
 
 if __name__ == "__main__":
-    
     mlflow.start_run()
-    
-    # Parse Arguments
     args = parse_args()
-    
-    lines = [
-        f"Model name: {args.model_name}",
-        f"Model path: {args.model_path}",
-        f"Model info output path: {args.model_info_output_path}"
-    ]
 
-    for line in lines:
-        print(line)
+    print(f"Model path: {args.model_path}")
+    print(f"Model info output path: {args.model_info_output_path}")
 
     main(args)
-
     mlflow.end_run()
